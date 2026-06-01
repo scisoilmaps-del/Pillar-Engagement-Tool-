@@ -376,7 +376,7 @@
 
   <div class="intro-card">
     <div class="intro-icon">ℹ️</div>
-    <p>Upload any combination of exports from the SCI Farm Program Toolbox. The tool will parse each CSV and estimate your current Engagement Level (I–IV) for each relevant Pillar based on <strong>explicit rules in the SCI Standard v3.0</strong>. Upload at least the <strong>Tillage Calculator</strong> and <strong>Crop Planner</strong> CSVs for the most complete analysis. Include the <strong>Continuous Learning Credit Tracker</strong> CSV to assess P6 and the <strong>Soil Health Report</strong> CSV to check soil testing readiness.</p>
+    <p>Upload any combination of exports from the SCI Farm Program Toolbox. The tool will parse each CSV and estimate your current Engagement Level (I–IV) for each relevant Pillar based on <strong>explicit rules in the SCI Standard v3.0</strong>. Upload at least the <strong>Tillage Calculator</strong> and <strong>Crop Planner</strong> CSVs for the most complete analysis. Include the <strong>Biodiversity Action Elements</strong> CSV to complete P4, the <strong>Continuous Learning Credit Tracker</strong> CSV to assess P6, and the <strong>Soil Health Report</strong> CSV to check soil testing readiness.</p>
   </div>
 
   <div class="section-label">Step 1 — Upload Tool Exports</div>
@@ -400,6 +400,16 @@
       <div class="uc-sub">Crop Plan LRI Summary CSV</div>
       <div class="uc-file" id="uf-crop"></div>
       <div class="uc-cols" id="ucols-crop">P2 — Living Roots · P4 — Diversity</div>
+    </label>
+
+    <label class="upload-card" id="uc-biodiversity">
+      <input type="file" accept=".csv" onchange="handleFile(event,'biodiversity')">
+      <div class="upload-icon">🦋</div>
+      <div class="loaded-icon">✓</div>
+      <h3>Biodiversity Actions</h3>
+      <div class="uc-sub">Action Elements Output CSV</div>
+      <div class="uc-file" id="uf-biodiversity"></div>
+      <div class="uc-cols" id="ucols-biodiversity">P4 — Action Elements</div>
     </label>
 
     <label class="upload-card" id="uc-fertility">
@@ -586,7 +596,7 @@ function analyzeSoilTesting(data) {
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
-const uploads = { tillage: null, crop: null, fertility: null, ipm: null, learning: null, soil: null };
+const uploads = { tillage: null, crop: null, biodiversity: null, fertility: null, ipm: null, learning: null, soil: null };
 
 function handleFile(evt, key) {
   const file = evt.target.files[0];
@@ -788,6 +798,59 @@ function analyzeCrop(data) {
     p2: { level: p2Level, evidence: p2Evidence, note: p2Note[p2Level] },
     p4crop: { level: p4Level, evidence: p4Evidence, note: p4Note[Math.min(p4Level, 4)] }
   };
+}
+
+
+function analyzeBiodiversityActions(data) {
+  // P4 Biodiversity Action Elements — §5.6.1–5.6.5
+  // Level I: 1 maintained Action Element; Level II: 2; Level III: 3 or equivalency; Level IV: 4 or equivalency.
+  if (!data) return { level: null, evidence: [{ type: 'warn', text: 'No Biodiversity Action Elements CSV uploaded. Upload the CSV exported from the Biodiversity Action Elements tool to assess §5.6.1–§5.6.5.' }], note: 'P4 Action Elements need the Biodiversity Action Elements output CSV or Farm Plan review.' };
+
+  const { meta } = rowsToMeta(data.rows);
+  const evidence = [];
+  const records = rowsToTable(data.rows, ['Farm Name','Crop Year','Field/Area Group']);
+
+  if (!records.length) {
+    return { level: null, evidence: [{ type: 'fail', text: 'CSV was uploaded but does not match the Biodiversity Action Elements export structure.' }], note: 'Export a fresh CSV from the Biodiversity Action Elements tool and upload it here.' };
+  }
+
+  const targetText = meta['target_engagement_level'] || '';
+  const requiredText = meta['required_action_elements'] || '';
+  const statusText = meta['status'] || '';
+  const hasEquivalency = /equivalency/i.test(requiredText) || /third.?party|certified/i.test(data.rows.flat().join(' '));
+
+  const maintained = records.filter(r => /implemented and maintained/i.test(r['Status'] || '') && String(r['Action Element'] || '').trim()).length;
+  const withIndicator = records.filter(r => String(r['Measurement Criterion'] || '').trim()).length;
+  const uniqueActions = new Set(records.map(r => String(r['Action Element'] || '').trim()).filter(Boolean));
+  const evidenceRows = records.filter(r => String(r['Evidence'] || '').trim()).length;
+
+  evidence.push({ type: 'info', text: `Parsed ${records.length} biodiversity Action Element record(s).` });
+  evidence.push({ type: maintained > 0 ? 'met' : 'fail', text: `${maintained} Action Element(s) are marked “Implemented and maintained.”` });
+  evidence.push({ type: withIndicator >= records.length ? 'met' : 'warn', text: `${withIndicator} of ${records.length} record(s) include a measurement criterion for baseline/outcome tracking (§5.6.5).` });
+  evidence.push({ type: evidenceRows >= maintained ? 'met' : 'warn', text: `${evidenceRows} record(s) include evidence notes such as photos, counts, maps, or documentation.` });
+  if (targetText) evidence.push({ type: 'info', text: `Biodiversity tool target: ${targetText}.` });
+  if (statusText) evidence.push({ type: /requirements met/i.test(statusText) ? 'met' : 'warn', text: `Biodiversity tool status: ${statusText}.` });
+  if (hasEquivalency) evidence.push({ type: 'met', text: 'Third-party certified pollinator or bird-friendly habitat management equivalency noted for Level III/IV pathway (§5.6.3–§5.6.4).' });
+
+  let level = 0;
+  if (hasEquivalency && maintained >= 1 && withIndicator >= maintained) level = 4;
+  else if (maintained >= 4 && withIndicator >= 4) level = 4;
+  else if (maintained >= 3 && withIndicator >= 3) level = 3;
+  else if (maintained >= 2 && withIndicator >= 2) level = 2;
+  else if (maintained >= 1 && withIndicator >= 1) level = 1;
+
+  if (level >= 1) evidence.push({ type: 'met', text: `Biodiversity Action Elements support ${levelLabel(level)} for §5.6.1–§5.6.4.` });
+  else evidence.push({ type: 'fail', text: 'At least one implemented and maintained Action Element with one measurement criterion is required for Level I (§5.6.1 and §5.6.5).' });
+
+  const note = {
+    0: 'Requirements not met. Add at least one maintained Action Element and one measurement criterion.',
+    1: 'Level I — add a second maintained Action Element with an indicator to advance to Level II.',
+    2: 'Level II — add a third maintained Action Element with an indicator to advance to Level III.',
+    3: 'Level III — add a fourth maintained Action Element or approved equivalency to advance to Level IV.',
+    4: 'Level IV — maintain four Action Elements or approved equivalency and track biodiversity outcomes.'
+  };
+
+  return { level, evidence, note: note[level], uniqueActions: uniqueActions.size };
 }
 
 function analyzeFertility(data) {
@@ -1084,6 +1147,7 @@ function analyze() {
   const cropResult = analyzeCrop(uploads.crop);
   const p2 = cropResult.p2;
   const p4crop = cropResult.p4crop;
+  const p4bio = analyzeBiodiversityActions(uploads.biodiversity);
   const p3 = analyzeP3(uploads.tillage, uploads.crop);
   const fertility = analyzeFertility(uploads.fertility);
   const ipm = analyzeIPM(uploads.ipm);
@@ -1096,12 +1160,15 @@ function analyze() {
     ? Math.min(fertility.level, ipm.level)
     : (fertility.level !== null ? fertility.level : (ipm.level !== null ? ipm.level : null));
 
-  // P4 overall: biodiversity action elements CANNOT be verified from CSVs — only crop diversity can
-  const p4Level = p4crop.level;
+  // P4 overall combines crop diversity signals from Crop Planner with biodiversity Action Elements CSV when uploaded.
+  // When both are available, the lower level is used because both P4 management diversity and Action Elements matter.
+  let p4Level = null;
+  if (p4crop.level !== null && p4bio.level !== null) p4Level = Math.min(p4crop.level, p4bio.level);
+  else p4Level = p4crop.level !== null ? p4crop.level : p4bio.level;
 
   // Farm name from any uploaded file
   let farmName = 'Your Farm';
-  for (const key of ['tillage','crop','fertility','ipm','learning','soil']) {
+  for (const key of ['tillage','crop','biodiversity','fertility','ipm','learning','soil']) {
     if (uploads[key]) {
       const { meta } = rowsToMeta(uploads[key].rows);
       if (meta['farm_name'] && meta['farm_name'] !== '') { farmName = meta['farm_name']; break; }
@@ -1126,11 +1193,14 @@ function analyze() {
     },
     {
       id: 'p4', num: 'P4', title: 'Maximizing Diversity',
-      subtitle: 'Crop rotation count (biodiversity manual) — §5.6',
+      subtitle: 'Crop diversity + Action Elements — §5.6',
       level: p4Level, evidence: [
+        { type: 'info', text: 'Crop diversity review (§5.6.6–§5.6.8)' },
         ...p4crop.evidence,
-        { type: 'warn', text: 'Biodiversity Action Elements (§5.6.1–5.6.4) and functional group coverage must be verified manually in your Farm Plan.' }
-      ], note: p4crop.note
+        { type: 'info', text: 'Biodiversity Action Elements review (§5.6.1–§5.6.5)' },
+        ...p4bio.evidence,
+        { type: (p4crop.level !== null && p4bio.level !== null) ? 'info' : 'warn', text: (p4crop.level !== null && p4bio.level !== null) ? 'P4 overall level uses the lower result from crop diversity and biodiversity Action Elements.' : 'Upload both Crop Planner and Biodiversity Action Elements CSVs for the strongest P4 estimate.' }
+      ], note: p4Level === null ? 'Upload Crop Planner and/or Biodiversity Action Elements CSV to assess P4.' : `P4 estimated ${levelLabel(p4Level)}. ${p4bio.note || p4crop.note || ''}`
     },
     {
       id: 'p5-nutrient', num: 'P5a', title: 'Reducing Synthetic Inputs',
@@ -1283,6 +1353,13 @@ function renderResults(farmName, pillars, overallLevel) {
     summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${lri.toFixed(3)}</div><div class="ds-cell-lbl">Weighted LRI</div></div>`;
     summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${meta['farm_weighted_living_root_%'] || (lri > 0 ? (lri*100).toFixed(1)+'%' : '—')}</div><div class="ds-cell-lbl">Living Root %</div></div>`;
   }
+  if (uploads.biodiversity) {
+    const bioRecords = rowsToTable(uploads.biodiversity.rows, ['Farm Name','Crop Year','Field/Area Group']);
+    const maintained = bioRecords.filter(r => /implemented and maintained/i.test(r['Status'] || '')).length;
+    const indicators = bioRecords.filter(r => String(r['Measurement Criterion'] || '').trim()).length;
+    summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${maintained || '—'}</div><div class="ds-cell-lbl">Bio Actions Maintained</div></div>`;
+    summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${indicators || '—'}</div><div class="ds-cell-lbl">Bio Indicators</div></div>`;
+  }
   if (uploads.fertility) {
     const { meta } = rowsToMeta(uploads.fertility.rows);
     summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${num(meta['farm_avg_n_units/acre'] || meta['farm_avg_n_units_acre'] || '').toFixed(1)}</div><div class="ds-cell-lbl">Avg N units/acre</div></div>`;
@@ -1323,7 +1400,7 @@ function renderResults(farmName, pillars, overallLevel) {
 
   html += `
     <div class="disclaimer">
-      <strong>Important — Estimation Only:</strong> This tool estimates Engagement Levels based on data available in the SCI toolbox CSV exports. It applies rules directly from the SCI Soil &amp; Climate Health Commitment &amp; Verification Standard v3.0. However, <strong>final Engagement Level determination requires a full third-party audit by an approved certifying body</strong> (SCS Global Services) per §8. Several requirements — including functional group diversity (§5.6.6), biodiversity Action Elements (§5.6.1–5.6.4), soil testing requirements (§7), continuous learning credits (§5.8), and livestock welfare (§5.9) — cannot be assessed from CSV exports and must be verified through your Farm Plan and on-site audit. Farms must advance one Engagement Level every 3 years (§5.2.1.a).
+      <strong>Important — Estimation Only:</strong> This tool estimates Engagement Levels based on data available in the SCI toolbox CSV exports. It applies rules directly from the SCI Soil &amp; Climate Health Commitment &amp; Verification Standard v3.0. However, <strong>final Engagement Level determination requires a full third-party audit by an approved certifying body</strong> (SCS Global Services) per §8. Several requirements — including functional group diversity (§5.6.6), biodiversity Action Element evidence (§5.6.1–§5.6.5), soil testing requirements (§7), continuous learning credits (§5.8), and livestock welfare (§5.9) — may require Farm Plan review and on-site audit evidence beyond CSV exports. Farms must advance one Engagement Level every 3 years (§5.2.1.a).
     </div>
   `;
 
@@ -1377,7 +1454,7 @@ function exportCSV() {
 
   rows.push([]);
   rows.push(['DISCLAIMER']);
-  rows.push(['This report provides an estimated Engagement Level only. Final verification requires a third-party audit by an approved certifying body (SCS Global Services) per §8 of the SCI Verification Standard v3.0. Requirements including biodiversity Action Elements (§5.6.1-5.6.4), soil testing requirements (§7), continuous learning credits (§5.8), soil testing requirements (§7), and livestock welfare (§5.9) must be verified through Farm Plan review and on-site audit.']);
+  rows.push(['This report provides an estimated Engagement Level only. Final verification requires a third-party audit by an approved certifying body (SCS Global Services) per §8 of the SCI Verification Standard v3.0. Requirements including biodiversity Action Element evidence (§5.6.1-5.6.5), soil testing requirements (§7), continuous learning credits (§5.8), and livestock welfare (§5.9) may require Farm Plan review and on-site audit evidence beyond CSV exports.']);
 
   const csv = '\uFEFF' + rows.map(r => r.map(csvEsc).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
