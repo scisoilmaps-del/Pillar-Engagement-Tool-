@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCI Engagement Level Estimator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --soil: #2D1B0E;
+    --bark: #4A2E14;
+    --clay: #8B5E3C;
+    --sand: #C8A882;
+    --straw: #E8D5B0;
+    --cream: #FAF6EE;
+    --leaf: #2D5A27;
+    --leaf-lt: #4A7A43;
+    --leaf-pale: #C8DFC5;
+    --moss: #1A3D18;
+    --sky: #4A7FA5;
+    --sky-lt: #D0E8F5;
+    --sun: #D4882A;
+    --sun-lt: #F5DDB0;
+    --warn: #C0392B;
+    --warn-lt: #FADBD8;
+    --gold: #C9A227;
+    --gold-lt: #FBF0CC;
+    --silver: #7F8C8D;
+    --silver-lt: #ECF0F1;
+    --line: rgba(45,27,14,0.12);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: var(--cream);
+    color: var(--soil);
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--moss);
+    color: var(--cream);
+    padding: 28px 32px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -40px; right: -60px;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(200,223,197,0.15) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+  .header-inner { max-width: 900px; margin: 0 auto; position: relative; }
+  .header-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(200,223,197,0.2);
+    border: 1px solid rgba(200,223,197,0.4);
+    border-radius: 999px;
+    padding: 3px 12px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--leaf-pale);
+    margin-bottom: 10px;
+  }
+  .header h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(22px, 4vw, 32px);
+    line-height: 1.15;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .header p {
+    font-size: 14px; color: rgba(250,246,238,0.75); font-weight: 300;
+    max-width: 560px;
+  }
+
+  /* MAIN LAYOUT */
+  .main { max-width: 900px; margin: 0 auto; padding: 28px 20px 60px; }
+
+  /* INTRO CARD */
+  .intro-card {
+    background: var(--sun-lt);
+    border: 1.5px solid var(--sand);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: flex; gap: 14px; align-items: flex-start;
+  }
+  .intro-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+  .intro-card p { font-size: 13.5px; color: var(--bark); line-height: 1.6; }
+  .intro-card strong { color: var(--soil); }
+
+  /* SECTION HEADERS */
+  .section-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--clay);
+    margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  /* UPLOAD GRID */
+  .upload-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .upload-card {
+    background: #fff;
+    border: 2px dashed var(--sand);
+    border-radius: 12px;
+    padding: 16px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .upload-card:hover { border-color: var(--leaf-lt); background: var(--leaf-pale); }
+  .upload-card.loaded { border-style: solid; border-color: var(--leaf); background: #F0F7EF; }
+  .upload-card.loaded .upload-icon { display: none; }
+  .upload-card.loaded .loaded-icon { display: flex; }
+  .upload-card input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-icon { font-size: 22px; margin-bottom: 6px; }
+  .loaded-icon {
+    display: none; align-items: center; justify-content: center;
+    width: 28px; height: 28px; background: var(--leaf); border-radius: 50%;
+    color: #fff; font-size: 14px; margin-bottom: 6px;
+  }
+  .upload-card h3 { font-size: 13px; font-weight: 600; color: var(--soil); margin-bottom: 3px; }
+  .upload-card .uc-sub { font-size: 11px; color: var(--clay); }
+  .upload-card .uc-file { font-size: 11px; color: var(--leaf); font-weight: 500; margin-top: 4px; display: none; }
+  .upload-card.loaded .uc-file { display: block; }
+  .upload-card .uc-cols { font-family: 'DM Mono', monospace; font-size: 9.5px; color: var(--silver); margin-top: 3px; display: none; }
+  .upload-card.loaded .uc-cols { display: block; }
+
+  /* ANALYZE BUTTON */
+  .analyze-wrap { text-align: center; margin: 8px 0 32px; }
+  .btn-analyze {
+    background: var(--leaf);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 14px 36px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn-analyze:hover { background: var(--moss); transform: translateY(-1px); }
+  .btn-analyze:active { transform: translateY(0); }
+  .btn-analyze:disabled { background: var(--silver); cursor: default; transform: none; }
+
+  /* RESULTS */
+  #results { display: none; }
+  #results.visible { display: block; }
+
+  .farm-banner {
+    background: var(--moss);
+    color: #fff;
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin-bottom: 20px;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  }
+  .farm-banner h2 { font-family: 'DM Serif Display', serif; font-size: 20px; }
+  .farm-banner .fb-meta { font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 3px; }
+  .farm-total { text-align: right; }
+  .farm-total .ft-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 28px; font-weight: 500;
+    color: #fff;
+  }
+  .farm-total .ft-lbl { font-size: 11px; color: rgba(255,255,255,0.6); }
+
+  /* PILLAR CARDS */
+  .pillars-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .pillar-card {
+    background: #fff;
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(45,27,14,0.06);
+  }
+  .pillar-head {
+    padding: 14px 16px 12px;
+    display: flex; align-items: flex-start; gap: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .pillar-num {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: var(--leaf);
+    color: #fff;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px; font-weight: 500;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .pillar-num.optional { background: var(--sky); }
+  .pillar-num.na { background: var(--silver); }
+  .pillar-title-wrap { flex: 1; }
+  .pillar-title { font-size: 13px; font-weight: 600; color: var(--soil); }
+  .pillar-subtitle { font-size: 11px; color: var(--clay); margin-top: 1px; }
+
+  .level-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 12px; font-weight: 700;
+    font-family: 'DM Mono', monospace;
+    flex-shrink: 0;
+  }
+  .level-badge.lv1 { background: var(--sun-lt); color: #8B5500; }
+  .level-badge.lv2 { background: var(--leaf-pale); color: var(--moss); }
+  .level-badge.lv3 { background: var(--sky-lt); color: #1A5070; }
+  .level-badge.lv4 { background: var(--gold-lt); color: #7A5800; }
+  .level-badge.lv0 { background: var(--warn-lt); color: var(--warn); }
+  .level-badge.na  { background: var(--silver-lt); color: var(--silver); }
+
+  /* Progress bar */
+  .progress-track {
+    height: 6px; background: var(--straw); border-radius: 999px;
+    margin: 10px 16px 0;
+  }
+  .progress-fill {
+    height: 100%; border-radius: 999px;
+    transition: width 0.6s ease;
+  }
+  .progress-fill.lv0 { background: var(--warn); }
+  .progress-fill.lv1 { background: var(--sun); }
+  .progress-fill.lv2 { background: var(--leaf-lt); }
+  .progress-fill.lv3 { background: var(--sky); }
+  .progress-fill.lv4 { background: var(--gold); }
+  .progress-fill.na  { background: var(--silver); width: 0 !important; }
+
+  /* Evidence items */
+  .pillar-evidence { padding: 12px 16px 14px; }
+  .evidence-item {
+    display: flex; gap: 8px; align-items: flex-start;
+    margin-bottom: 7px;
+    font-size: 12px; line-height: 1.5;
+    color: var(--bark);
+  }
+  .evidence-item:last-child { margin-bottom: 0; }
+  .ei-icon { flex-shrink: 0; font-size: 13px; margin-top: 1px; }
+  .evidence-item.met .ei-icon::before { content: '✓'; color: var(--leaf); font-weight: 700; }
+  .evidence-item.fail .ei-icon::before { content: '✗'; color: var(--warn); font-weight: 700; }
+  .evidence-item.warn .ei-icon::before { content: '?'; color: var(--sun); font-weight: 700; }
+  .evidence-item.info .ei-icon::before { content: '·'; color: var(--silver); font-weight: 900; }
+
+  .pillar-note {
+    margin: 0 16px 14px;
+    padding: 8px 12px;
+    background: var(--sun-lt);
+    border-left: 3px solid var(--sun);
+    border-radius: 0 6px 6px 0;
+    font-size: 11.5px; color: var(--bark); line-height: 1.55;
+  }
+
+  /* DATA SUMMARY TABLE */
+  .data-summary {
+    background: #fff;
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+  .ds-head { padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  .ds-head h3 { font-size: 14px; font-weight: 600; }
+  .ds-head p { font-size: 12px; color: var(--clay); margin-top: 2px; }
+  .ds-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 0;
+  }
+  .ds-cell {
+    padding: 14px 18px;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .ds-cell:nth-child(3n) { border-right: none; }
+  .ds-cell-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 20px; font-weight: 500; color: var(--soil);
+  }
+  .ds-cell-lbl { font-size: 11px; color: var(--clay); margin-top: 2px; }
+
+  /* EXPORT BUTTONS */
+  .export-bar {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .btn-export {
+    display: inline-flex; align-items: center; gap: 7px;
+    border: none; border-radius: 9px;
+    padding: 10px 20px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+  .btn-export:hover { transform: translateY(-1px); }
+  .btn-export:active { transform: none; }
+  .btn-export.csv { background: var(--leaf-pale); color: var(--moss); }
+  .btn-export.csv:hover { background: #b0d0ac; }
+  .btn-export.pdf { background: var(--sun-lt); color: #7A4500; }
+  .btn-export.pdf:hover { background: #eecf90; }
+
+  /* PRINT STYLES */
+  @media print {
+    body { background: #fff; font-size: 11pt; }
+    .header, .main > *:not(#results) { display: none !important; }
+    #results { display: block !important; }
+    .export-bar, .btn-export { display: none !important; }
+    .farm-banner { background: #1A3D18 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; border-radius: 6px; margin-bottom: 14px; }
+    .pillar-card { break-inside: avoid; border: 1px solid #ccc; box-shadow: none; margin-bottom: 10px; }
+    .pillars-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .progress-track { display: none; }
+    .disclaimer { border: 1px solid #ccc; background: #f5f5f5 !important; }
+    .data-summary { break-inside: avoid; }
+    @page { margin: 1.5cm; }
+  }
+
+  /* DISCLAIMER */
+  .disclaimer {
+    background: var(--silver-lt);
+    border: 1px solid #dde;
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 12px; color: var(--silver); line-height: 1.6;
+    margin-top: 24px;
+  }
+  .disclaimer strong { color: var(--bark); }
+
+  /* EMPTY STATE */
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--clay);
+  }
+  .empty-state .es-icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; }
+
+  @media (max-width: 600px) {
+    .header { padding: 20px 16px 18px; }
+    .main { padding: 20px 14px 50px; }
+    .pillars-grid { grid-template-columns: 1fr; }
+    .farm-banner { flex-direction: column; }
+    .farm-total { text-align: left; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="header-badge">🌱 SCI Verification Program</div>
+    <h1>Engagement Level Estimator</h1>
+    <p>Upload CSV exports from the SCI toolbox to estimate your Pillar Engagement Levels based on the Verification Standard v3.0</p>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="intro-card">
+    <div class="intro-icon">ℹ️</div>
+    <p>Upload any combination of exports from the SCI Farm Program Toolbox. The tool will parse each CSV and estimate your current Engagement Level (I–IV) for each relevant Pillar based on <strong>explicit rules in the SCI Standard v3.0</strong>. Upload at least the <strong>Tillage Calculator</strong> and <strong>Crop Planner</strong> CSVs for the most complete analysis.</p>
+  </div>
+
+  <div class="section-label">Step 1 — Upload Tool Exports</div>
+
+  <div class="upload-grid">
+    <label class="upload-card" id="uc-tillage">
+      <input type="file" accept=".csv" onchange="handleFile(event,'tillage')">
+      <div class="upload-icon">🚜</div>
+      <div class="loaded-icon">✓</div>
+      <h3>Tillage Calculator</h3>
+      <div class="uc-sub">gTIR Tillage Summary CSV</div>
+      <div class="uc-file" id="uf-tillage"></div>
+      <div class="uc-cols" id="ucols-tillage">P1 — Minimize Soil Disturbance</div>
+    </label>
+
+    <label class="upload-card" id="uc-crop">
+      <input type="file" accept=".csv" onchange="handleFile(event,'crop')">
+      <div class="upload-icon">🌾</div>
+      <div class="loaded-icon">✓</div>
+      <h3>Crop Planner / LRI</h3>
+      <div class="uc-sub">Crop Plan LRI Summary CSV</div>
+      <div class="uc-file" id="uf-crop"></div>
+      <div class="uc-cols" id="ucols-crop">P2 — Living Roots · P4 — Diversity</div>
+    </label>
+
+    <label class="upload-card" id="uc-fertility">
+      <input type="file" accept=".csv" onchange="handleFile(event,'fertility')">
+      <div class="upload-icon">🧪</div>
+      <div class="loaded-icon">✓</div>
+      <h3>Nutrient Management Plan</h3>
+      <div class="uc-sub">Fertilizer Inputs CSV</div>
+      <div class="uc-file" id="uf-fertility"></div>
+      <div class="uc-cols" id="ucols-fertility">P5 — Reducing Synthetic Inputs</div>
+    </label>
+
+    <label class="upload-card" id="uc-ipm">
+      <input type="file" accept=".csv" onchange="handleFile(event,'ipm')">
+      <div class="upload-icon">🐛</div>
+      <div class="loaded-icon">✓</div>
+      <h3>IPM Plan</h3>
+      <div class="uc-sub">IPM Input Summary CSV</div>
+      <div class="uc-file" id="uf-ipm"></div>
+      <div class="uc-cols" id="ucols-ipm">P5 — Pesticide Stewardship</div>
+    </label>
+
+
+  </div>
+
+  <div class="analyze-wrap">
+    <button class="btn-analyze" id="analyzeBtn" onclick="analyze()">
+      <span>🌿</span> Estimate Engagement Levels
+    </button>
+  </div>
+
+  <div id="results">
+    <!-- injected by JS -->
+  </div>
+
+</div>
+
+<script>
+// ─── CSV Parser ───────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const rows = [];
+  for (const line of lines) {
+    if (!line.trim()) { rows.push([]); continue; }
+    const row = [];
+    let inQ = false, cur = '';
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+        else inQ = !inQ;
+      } else if (c === ',' && !inQ) {
+        row.push(cur.trim()); cur = '';
+      } else cur += c;
+    }
+    row.push(cur.trim());
+    rows.push(row);
+  }
+  return rows;
+}
+
+function rowsToMeta(rows) {
+  // Returns key-value map from header rows like ['Key','Value']
+  const meta = {};
+  let dataStart = -1;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.length === 0 || (r.length === 1 && !r[0])) { dataStart = i; break; }
+    if (r.length >= 2 && r[0]) meta[r[0].toLowerCase().replace(/\s+/g,'_')] = r[1];
+  }
+  return { meta, dataStart };
+}
+
+function rowsToTable(rows, headerRow) {
+  // Find header row index
+  let hIdx = -1;
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i].length > 2 && rows[i].some(c => c === headerRow[0])) { hIdx = i; break; }
+  }
+  if (hIdx < 0) return [];
+  const headers = rows[hIdx];
+  const table = [];
+  for (let i = hIdx+1; i < rows.length; i++) {
+    if (!rows[i].length || !rows[i][0]) continue;
+    const obj = {};
+    headers.forEach((h, j) => { obj[h] = rows[i][j] || ''; });
+    table.push(obj);
+  }
+  return table;
+}
+
+// ─── State ────────────────────────────────────────────────────────────────────
+const uploads = { tillage: null, crop: null, fertility: null, ipm: null, soil: null, irrigation: null };
+
+function handleFile(evt, key) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result.replace(/^\uFEFF/, '');
+    uploads[key] = { name: file.name, rows: parseCSV(text) };
+    const card = document.getElementById('uc-' + key);
+    card.classList.add('loaded');
+    const fn = document.getElementById('uf-' + key);
+    if (fn) { fn.textContent = '📄 ' + file.name; }
+  };
+  reader.readAsText(file);
+}
+
+// ─── Analysis Engine ──────────────────────────────────────────────────────────
+function num(v) { const n = parseFloat(String(v || '').replace(/[^0-9.\-]/g,'')); return isNaN(n) ? 0 : n; }
+function pct(v) { return num(String(v || '').replace('%','').trim()); }
+
+function analyzeTillage(data) {
+  // P1: Minimize Soil Disturbance
+  // Standard §5.3: TI levels: I≤120, II≤100, III≤80, IV≤60
+  // Prohibited: primary inversion tillage
+  if (!data) return { level: null, evidence: [], note: 'No Tillage Calculator CSV uploaded.' };
+
+  const { meta, dataStart } = rowsToMeta(data.rows);
+  const evidence = [];
+  let level = 0;
+
+  // Extract farm-level TI
+  const farmAvg = num(meta['farm_average_gtir'] || meta['avg_gtir'] || '');
+  evidence.push({ type: farmAvg > 0 ? 'info' : 'warn', text: `Farm Average gTIR: ${farmAvg > 0 ? farmAvg.toFixed(1) : 'not found'}` });
+
+  // Check for moldboard/inversion (prohibited at all levels)
+  let hasInversion = false;
+  let inversionImplements = [];
+  for (const row of data.rows) {
+    const implement = (row[6] || row[7] || '').toLowerCase();
+    if (implement.includes('moldboard') || implement.includes('inversion') || implement.includes('chisel plow')) {
+      hasInversion = true;
+      inversionImplements.push(row[6] || row[7] || '');
+    }
+  }
+
+  if (hasInversion) {
+    evidence.push({ type: 'fail', text: `⚠️ Primary inversion tillage detected (${inversionImplements[0]}). PROHIBITED at all Engagement Levels per §5.3.1.` });
+    return { level: 0, evidence, note: 'Cannot achieve any Engagement Level while primary inversion tillage is in use. §5.3.1 is a universal requirement.' };
+  } else {
+    evidence.push({ type: 'met', text: 'No primary inversion tillage implements detected (§5.3.1 ✓)' });
+  }
+
+  // Determine level from TI
+  if (farmAvg > 0) {
+    if (farmAvg <= 60) {
+      level = 4;
+      evidence.push({ type: 'met', text: `gTIR ${farmAvg.toFixed(1)} ≤ 60 → Level IV requirement met (§5.3.2.d)` });
+    } else if (farmAvg <= 80) {
+      level = 3;
+      evidence.push({ type: 'met', text: `gTIR ${farmAvg.toFixed(1)} ≤ 80 → Level III requirement met (§5.3.2.c)` });
+      evidence.push({ type: 'warn', text: `Reduce gTIR to ≤60 for Level IV (§5.3.2.d)` });
+    } else if (farmAvg <= 100) {
+      level = 2;
+      evidence.push({ type: 'met', text: `gTIR ${farmAvg.toFixed(1)} ≤ 100 → Level II requirement met (§5.3.2.b)` });
+      evidence.push({ type: 'warn', text: `Reduce gTIR to ≤80 for Level III (§5.3.2.c)` });
+    } else if (farmAvg <= 120) {
+      level = 1;
+      evidence.push({ type: 'met', text: `gTIR ${farmAvg.toFixed(1)} ≤ 120 → Level I requirement met (§5.3.2.a)` });
+      evidence.push({ type: 'warn', text: `Reduce gTIR to ≤100 for Level II (§5.3.2.b)` });
+    } else {
+      level = 0;
+      evidence.push({ type: 'fail', text: `gTIR ${farmAvg.toFixed(1)} exceeds 120 — does not meet Level I (§5.3.2.a)` });
+    }
+  } else {
+    evidence.push({ type: 'warn', text: 'Farm Average gTIR not found in summary. Cannot determine level from gTIR.' });
+    level = 1; // assume user documented per §5.3.2
+  }
+
+  // Residue burning check
+  let burnDetected = false;
+  for (const row of data.rows) {
+    if ((row[7] || '').toLowerCase().includes('burn')) burnDetected = true;
+  }
+  if (burnDetected) {
+    evidence.push({ type: 'fail', text: 'Crop residue burning detected in records. PROHIBITED at all levels (§5.3.4).' });
+    level = Math.min(level, 0);
+  } else {
+    evidence.push({ type: 'met', text: 'No crop residue burning in tillage records (§5.3.4 ✓)' });
+  }
+
+  const levelNote = {
+    0: 'Tillage practices do not currently meet Level I requirements.',
+    1: 'Meets Level I. Reduce gTIR toward ≤100 to advance to Level II.',
+    2: 'Meets Level II. Reduce gTIR toward ≤80 to advance to Level III.',
+    3: 'Meets Level III. Reduce gTIR toward ≤60 to achieve Level IV.',
+    4: 'Meets Level IV. Maintain gTIR ≤60 and show positive trend per §5.2.1.b.'
+  };
+  return { level, evidence, note: levelNote[level] };
+}
+
+function analyzeCrop(data) {
+  // P2: Living Roots — LRI / Living Root %
+  // §5.4: Level I ≥50%, II ≥60%, III ≥70%, IV ≥80% of growing season
+  // P4: Crop Diversity — §5.6.6-5.6.8: number of crops in rotation
+  if (!data) return { p2: { level: null, evidence: [], note: 'No Crop Planner CSV uploaded.' }, p4crop: { level: null, evidence: [], note: 'No Crop Planner CSV uploaded.' } };
+
+  const { meta } = rowsToMeta(data.rows);
+
+  // ── P2 Analysis ──
+  const p2Evidence = [];
+  let p2Level = 0;
+
+  // Farm Weighted Living Root %
+  let lrPct = pct(meta['farm_weighted_living_root_%'] || meta['farm_living_root_%'] || '');
+  // Also try LRI
+  const weightedLri = num(meta['farm_weighted_living_root_index'] || '');
+  if (lrPct === 0 && weightedLri > 0) lrPct = weightedLri * 100;
+
+  p2Evidence.push({ type: 'info', text: `Farm Weighted Living Root Index: ${meta['farm_weighted_living_root_index'] || 'N/A'}` });
+  p2Evidence.push({ type: 'info', text: `Farm Living Root %: ${lrPct > 0 ? lrPct.toFixed(1) + '%' : 'N/A'}` });
+
+  if (lrPct >= 80) {
+    p2Level = 4;
+    p2Evidence.push({ type: 'met', text: `${lrPct.toFixed(1)}% ≥ 80% → Level IV met (§5.4.4)` });
+  } else if (lrPct >= 70) {
+    p2Level = 3;
+    p2Evidence.push({ type: 'met', text: `${lrPct.toFixed(1)}% ≥ 70% → Level III met (§5.4.3)` });
+    p2Evidence.push({ type: 'warn', text: 'Increase to ≥80% for Level IV (§5.4.4)' });
+  } else if (lrPct >= 60) {
+    p2Level = 2;
+    p2Evidence.push({ type: 'met', text: `${lrPct.toFixed(1)}% ≥ 60% → Level II met (§5.4.2)` });
+    p2Evidence.push({ type: 'warn', text: 'Increase to ≥70% for Level III (§5.4.3)' });
+  } else if (lrPct >= 50) {
+    p2Level = 1;
+    p2Evidence.push({ type: 'met', text: `${lrPct.toFixed(1)}% ≥ 50% → Level I met (§5.4.1)` });
+    p2Evidence.push({ type: 'warn', text: 'Increase to ≥60% for Level II (§5.4.2)' });
+  } else if (lrPct > 0) {
+    p2Level = 0;
+    p2Evidence.push({ type: 'fail', text: `${lrPct.toFixed(1)}% < 50% — does not meet Level I (§5.4.1 requires ≥50%)` });
+  } else {
+    p2Evidence.push({ type: 'warn', text: 'Living Root % not found in CSV summary. Check that you exported from the Crop Planner.' });
+    p2Level = 1;
+  }
+
+  // ── P4 Crop Diversity Analysis ──
+  const p4Evidence = [];
+  let p4Level = 0;
+
+  // Count unique crops from the data rows
+  const cropNames = new Set();
+  const entryRows = rowsToTable(data.rows, ['Farm Name','Prepared By','Planning Year']);
+  let hasCoverCrop = false;
+  let hasMultiSpeciesMix = false;
+
+  for (const row of entryRows) {
+    const cropName = (row['Crop'] || row['Crop Page Name'] || '').trim().toLowerCase();
+    const cat = (row['Input Category'] || '').toLowerCase();
+    if (cropName) cropNames.add(cropName);
+    if (cat.includes('cover') || cat.includes('pre') || cat.includes('post')) hasCoverCrop = true;
+  }
+
+  // Also add the Crop Page Names as a group
+  const cropPageNames = new Set();
+  for (const row of entryRows) {
+    const n = (row['Crop Page Name'] || '').trim();
+    if (n) cropPageNames.add(n);
+  }
+
+  const uniqueCrops = cropPageNames.size || cropNames.size;
+  p4Evidence.push({ type: 'info', text: `Unique crop entries found: ${uniqueCrops}` });
+  p4Evidence.push({ type: hasCoverCrop ? 'met' : 'warn', text: hasCoverCrop ? 'Cover crop entries detected in planner' : 'No cover crop entries found (needed for Level III/IV §5.6.8)' });
+
+  // Standard §5.6.6: Level I = min 3 crops, 3 of 4 functional groups
+  // §5.6.7: Level II = min 4 crops, 3 of 4 functional groups
+  // §5.6.8: Level III/IV = multi-species cover crop mix with 3 of 4 functional groups
+  // Note: We can count unique Crop Page Names as proxy for rotation count
+  if (uniqueCrops >= 4 && hasCoverCrop) {
+    p4Level = 3;
+    p4Evidence.push({ type: 'met', text: `≥4 crop entries + cover crop → Level II/III criteria present (§5.6.7–5.6.8)` });
+    p4Evidence.push({ type: 'warn', text: 'Verify functional group coverage (Cool/Warm grasses, Legumes, Forbs) — cannot assess from CSV alone' });
+    p4Evidence.push({ type: 'warn', text: 'Verify multi-species cover crop mix for Level III (§5.6.8)' });
+  } else if (uniqueCrops >= 3) {
+    p4Level = 2;
+    p4Evidence.push({ type: 'met', text: `≥3 crop entries → Level I crop count met (§5.6.6)` });
+    p4Evidence.push({ type: 'warn', text: 'Add ≥4 crops + cover crop for Level II/III (§5.6.7)' });
+    p4Evidence.push({ type: 'warn', text: 'Verify 3 of 4 functional groups (Cool/Warm grasses, Legumes, Forbs) per §5.6.6' });
+  } else if (uniqueCrops > 0) {
+    p4Level = 1;
+    p4Evidence.push({ type: 'fail', text: `Only ${uniqueCrops} crop(s) — Level I requires min 3 in rotation (§5.6.6)` });
+  } else {
+    p4Evidence.push({ type: 'warn', text: 'Could not count crop rotation entries from CSV.' });
+    p4Level = 1;
+  }
+
+  const p2Note = { 0: 'Living root coverage below 50%. Add cover crops and expand rotations.', 1: 'Level I — expand living root coverage toward ≥60% for Level II.', 2: 'Level II — target ≥70% coverage for Level III.', 3: 'Level III — target ≥80% for Level IV.', 4: 'Level IV — maintain ≥80% and show positive trend.' };
+  const p4Note = { 0: 'Crop diversity below Level I. Need min 3 crops with 3 functional groups (§5.6.6).', 1: 'Level I — add more crops and cover crops to advance.', 2: 'Level I–II range. Verify functional groups in your Farm Plan.', 3: 'Level II–III range. Confirm multi-species cover crop mix per §5.6.8.', 4: 'Level III–IV. Verify all 4 biodiversity Action Elements for Level IV (§5.6.4).' };
+
+  return {
+    p2: { level: p2Level, evidence: p2Evidence, note: p2Note[p2Level] },
+    p4crop: { level: p4Level, evidence: p4Evidence, note: p4Note[Math.min(p4Level, 4)] }
+  };
+}
+
+function analyzeFertility(data) {
+  // P5 Nutrient Stewardship: §5.7.8-5.7.10
+  // Level I: baseline calculated, rates < extension recommendations (§5.7.9)
+  // Level II-IV: rates decrease per level (§5.7.10)
+  if (!data) return { level: null, evidence: [], note: 'No Fertility Plan CSV uploaded.' };
+
+  const { meta } = rowsToMeta(data.rows);
+  const evidence = [];
+  let level = 0;
+
+  const farmAvgN = num(meta['farm_avg_n_units/acre'] || meta['farm_avg_n_units_acre'] || '');
+  const farmAvgP = num(meta['farm_avg_p_units/acre'] || meta['farm_avg_p_units_acre'] || '');
+  const farmAvgK = num(meta['farm_avg_k_units/acre'] || meta['farm_avg_k_units_acre'] || '');
+  const farmTotalN = num(meta['farm_total_n_units'] || '');
+
+  evidence.push({ type: 'info', text: `Farm Avg N: ${farmAvgN} units/acre | P: ${farmAvgP} | K: ${farmAvgK}` });
+
+  // Check for NSP: presence of plan = Level I met per §5.7.8
+  if (data.rows.length > 5) {
+    level = 1;
+    evidence.push({ type: 'met', text: 'Nutrient Stewardship Plan data present (§5.7.8 ✓ — required at all levels)' });
+  }
+
+  // §5.7.9: Level I baseline must be < extension recommendation. We can only infer.
+  evidence.push({ type: 'warn', text: 'Cannot auto-verify vs. extension recommendations without local benchmark data (§5.7.9)' });
+
+  // Categorize synthetic vs organic inputs
+  const entryRows = rowsToTable(data.rows, ['Farm Name','State','Input Category']);
+  let hasSynthetic = false, hasOrganic = false;
+  for (const row of entryRows) {
+    const cat = (row['Input Category'] || '').toLowerCase();
+    const product = (row['Product Or Pack Name'] || '').toLowerCase();
+    if (cat.includes('synthetic') || cat.includes('urea') || cat.includes('anhydrous') || product.includes('urea') || product.includes('anhydrous') || product.includes('28-0') || product.includes('10-34')) hasSynthetic = true;
+    if (cat.includes('organic') || cat.includes('compost') || cat.includes('manure')) hasOrganic = true;
+  }
+
+  if (hasOrganic && !hasSynthetic) {
+    level = Math.max(level, 3);
+    evidence.push({ type: 'met', text: 'Only organic nutrient sources detected — strong indicator of Level III–IV progress (§5.7.10)' });
+  } else if (hasOrganic && hasSynthetic) {
+    level = Math.max(level, 2);
+    evidence.push({ type: 'met', text: 'Mix of organic and synthetic inputs — indicates active reduction transition (§5.7.10)' });
+  } else if (hasSynthetic) {
+    level = Math.max(level, 1);
+    evidence.push({ type: 'warn', text: 'Only synthetic inputs found. Document reduction plan to advance levels (§5.7.10)' });
+  }
+
+  const note = {
+    0: 'No fertilizer data processed. Upload Fertility Plan CSV.',
+    1: 'Level I. Establish baseline and document rate reductions per §5.7.9–5.7.10.',
+    2: 'Level I–II range. Continue reducing synthetic rates per level cycle (§5.7.10).',
+    3: 'Level II–III. Organic/low-input approach aligns with advanced levels.',
+    4: 'Level IV criteria. Maintain downward trend and NSP documentation.'
+  };
+  return { level, evidence, note: note[Math.min(level, 4)] };
+}
+
+function analyzeIPM(data) {
+  // P5 Pesticide: §5.7.1–5.7.7
+  // All levels: IPM plan required (§5.7.1), risk mitigation (§5.7.6), no off-label desiccants (§5.7.7)
+  // Level I: baseline calculation (§5.7.2), phase out N-methyl carbamates & OPs (§5.7.4)
+  // Level II+: intensity decrease (§5.7.3), phase out neonicotinoids (§5.7.5)
+  if (!data) return { level: null, evidence: [], note: 'No IPM Plan CSV uploaded.' };
+
+  const { meta } = rowsToMeta(data.rows);
+  const evidence = [];
+  let level = 0;
+
+  const farmTotalAI = num(meta['farm_total_active_ingredient'] || '');
+  const farmAvgAIPerAcre = num(meta['farm_avg_active_ingredient/acre'] || meta['farm_avg_active_ingredient_acre'] || '');
+  const entryCount = num(meta['farm_ipm_application_count'] || '');
+
+  evidence.push({ type: 'info', text: `Total Active Ingredient: ${farmTotalAI.toFixed(4)} | Avg AI/Acre: ${farmAvgAIPerAcre.toFixed(4)} | Applications: ${entryCount}` });
+
+  // IPM plan present = §5.7.1 met
+  if (data.rows.length > 5) {
+    level = 1;
+    evidence.push({ type: 'met', text: 'IPM Plan data present — §5.7.1 requirement met (required at all levels)' });
+    evidence.push({ type: 'met', text: 'Pesticide Intensity Baseline calculable from this data (§5.7.2 ✓)' });
+  }
+
+  // Scan for high-risk chemistries (§5.7.4: OP/carbamate, §5.7.5: neonicotinoid)
+  const entryRows = rowsToTable(data.rows, ['Farm Name','State','Input Category']);
+  let hasOrganophosphate = false, hasNeonicotinoid = false;
+  const OP_KEYWORDS = ['organophosphate','chlorpyrifos','malathion','dimethoate','methyl parathion','parathion','acephate','methamidophos','monocrotophos'];
+  const CARB_KEYWORDS = ['carbamate','carbaryl','methomyl','oxamyl','aldicarb','carbofuran'];
+  const NEONIC_KEYWORDS = ['neonicotinoid','imidacloprid','clothianidin','thiamethoxam','nitroguanidine','dinotefuran','acetamiprid'];
+
+  for (const row of entryRows) {
+    const pest = (row['Weed Or Pest'] || '').toLowerCase();
+    const product = (row['Product Name'] || '').toLowerCase();
+    const combined = pest + ' ' + product;
+    if (OP_KEYWORDS.some(k => combined.includes(k))) hasOrganophosphate = true;
+    if (CARB_KEYWORDS.some(k => combined.includes(k))) hasOrganophosphate = true;
+    if (NEONIC_KEYWORDS.some(k => combined.includes(k))) hasNeonicotinoid = true;
+  }
+
+  if (hasOrganophosphate) {
+    evidence.push({ type: 'fail', text: 'Organophosphate or N-methyl carbamate detected. Must be phased out for initial verification (§5.7.4).' });
+    level = Math.min(level, 0);
+  } else {
+    evidence.push({ type: 'met', text: 'No organophosphates or N-methyl carbamates detected (§5.7.4 ✓)' });
+    level = Math.max(level, 1);
+  }
+
+  if (hasNeonicotinoid) {
+    evidence.push({ type: 'warn', text: 'Nitroguanidine neonicotinoids detected. Must be phased out by Level II unless no alternatives available (§5.7.5).' });
+    level = Math.min(level, 1); // blocks Level II
+  } else {
+    evidence.push({ type: 'met', text: 'No neonicotinoid seed treatments detected (§5.7.5 ✓ — Level II+ clear)' });
+    level = Math.max(level, 2);
+  }
+
+  // AI per acre trend — if low, assign higher level
+  if (!hasOrganophosphate && !hasNeonicotinoid) {
+    if (farmAvgAIPerAcre > 0 && farmAvgAIPerAcre < 0.5) {
+      level = Math.max(level, 3);
+      evidence.push({ type: 'met', text: `Low AI/Acre (${farmAvgAIPerAcre.toFixed(4)}) suggests reduced pesticide intensity — Level III signal (§5.7.3)` });
+    } else if (farmAvgAIPerAcre > 0) {
+      evidence.push({ type: 'warn', text: `AI/Acre: ${farmAvgAIPerAcre.toFixed(4)} — track downward trend per level to advance (§5.7.3)` });
+    }
+  }
+
+  const note = {
+    0: 'Phase out organophosphates/carbamates before initial verification (§5.7.4).',
+    1: 'Level I — phase out neonicotinoids to advance to Level II (§5.7.5).',
+    2: 'Level II — continue reducing AI/acre intensity per cycle (§5.7.3).',
+    3: 'Level III — maintain downward pesticide trend and IPM documentation.',
+    4: 'Level IV — comprehensive IPM with documented reduction across all categories.'
+  };
+  return { level, evidence, note: note[Math.min(level, 4)] };
+}
+
+function analyzeP3(tillageData, cropData) {
+  // P3: Keeping Year-Round Soil Coverage
+  // §5.5.1: bare soil must decrease (all levels)
+  // §5.5.2: green fallow if fallow used (Level III+)
+  // Inferred from: LRI %, tillage intensity, cover crop presence
+  const evidence = [];
+  let level = 0;
+
+  if (!tillageData && !cropData) {
+    return { level: null, evidence: [{ type: 'warn', text: 'Upload Tillage and/or Crop Planner CSV for P3 assessment.' }], note: 'No data available for P3.' };
+  }
+
+  let lrPct = 0;
+  if (cropData) {
+    const { meta } = rowsToMeta(cropData.rows);
+    lrPct = pct(meta['farm_weighted_living_root_%'] || '');
+    const lri = num(meta['farm_weighted_living_root_index'] || '');
+    if (lrPct === 0 && lri > 0) lrPct = lri * 100;
+  }
+
+  let farmAvgTI = 0;
+  if (tillageData) {
+    const { meta } = rowsToMeta(tillageData.rows);
+    farmAvgTI = num(meta['farm_average_gtir'] || '');
+  }
+
+  evidence.push({ type: 'info', text: 'P3 is largely inferred from P1 (tillage) and P2 (living roots) data per §5.5' });
+
+  // §5.5.1 universally required: bare soil must decrease
+  if (lrPct >= 70 && farmAvgTI <= 80) {
+    level = 4;
+    evidence.push({ type: 'met', text: `High living root coverage (${lrPct.toFixed(1)}%) + low tillage (${farmAvgTI.toFixed(0)} gTIR) → strong soil coverage indicator` });
+    evidence.push({ type: 'met', text: '§5.5.1 (bare soil decrease) and §5.5.2 (green fallow) likely met at this management intensity' });
+  } else if (lrPct >= 60 && farmAvgTI <= 100) {
+    level = 3;
+    evidence.push({ type: 'met', text: `Living root ${lrPct.toFixed(1)}% + gTIR ${farmAvgTI.toFixed(0)} → moderate-good soil coverage` });
+    evidence.push({ type: 'warn', text: 'Verify green fallow system is in use if fallow periods exist (§5.5.2, Level III+)' });
+  } else if (lrPct >= 50 || farmAvgTI <= 120) {
+    level = 2;
+    evidence.push({ type: 'warn', text: 'Soil coverage adequate for Level I–II but verify bare soil is decreasing vs. baseline (§5.5.1)' });
+  } else {
+    level = 1;
+    evidence.push({ type: 'warn', text: 'Coverage indicators below thresholds — ensure bare soil is measurably decreasing (§5.5.1)' });
+  }
+
+  evidence.push({ type: 'warn', text: 'Note: §5.5.1 requires documented baseline comparison — this estimate cannot verify decrease without prior data.' });
+
+  const note = { 1: 'Ensure bare soil decreasing vs baseline (§5.5.1). Document with field photos/records.', 2: 'Level I–II range. Increase soil coverage through more cover cropping.', 3: 'Level II–III range. Implement green fallow system if applicable (§5.5.2).', 4: 'Level III–IV range. Maintain comprehensive soil cover year-round.' };
+  return { level, evidence, note: note[Math.max(1, Math.min(level, 4))] };
+}
+
+function analyzeP6(allData) {
+  // P6: Continuous Learning
+  // §5.8.1: ≥$150k revenue → 24 credits/year (8 on-farm research)
+  // §5.8.2: <$150k → 16 credits/year
+  // §5.8.3: First year waived by enrollment activities
+  // Cannot be assessed from CSVs — mark as manual
+  return {
+    level: null,
+    evidence: [
+      { type: 'warn', text: 'P6 Continuous Learning cannot be assessed from toolbox CSV exports.' },
+      { type: 'info', text: '§5.8.1: Farms ≥$150k revenue → 24 learning credits/year (8 on-farm research)' },
+      { type: 'info', text: '§5.8.2: Farms <$150k → 16 learning credits/year' },
+      { type: 'info', text: '§5.8.3: First-year enrollment activities satisfy the requirement' },
+      { type: 'info', text: 'Document via webinars (1 credit), consultations (2), field days (3), on-farm research (4)' }
+    ],
+    note: 'Assess manually using the Learning Credit Allocation table (§5.8 / Table 5.8). Report annually.'
+  };
+}
+
+function analyzeP7(allData) {
+  // P7: Livestock — optional, cannot be assessed from these CSVs
+  return {
+    level: null,
+    isOptional: true,
+    evidence: [
+      { type: 'info', text: 'P7 is optional and applies only to farms integrating livestock (§5.9).' },
+      { type: 'info', text: 'Requires animal welfare compliance (§5.9.A), grazing plan (§5.9.B.4), pasture management (§5.9.A.9–5.9.A.21).' },
+      { type: 'info', text: 'No livestock-specific tools are included in the current toolbox export set.' }
+    ],
+    note: 'If livestock are integrated, assess against Table 5.9.A and 5.9.B requirements manually.'
+  };
+}
+
+function analyze() {
+  const hasAny = Object.values(uploads).some(v => v !== null);
+  if (!hasAny) {
+    alert('Please upload at least one CSV file before analyzing.');
+    return;
+  }
+
+  // Run all analyses
+  const p1 = analyzeTillage(uploads.tillage);
+  const cropResult = analyzeCrop(uploads.crop);
+  const p2 = cropResult.p2;
+  const p4crop = cropResult.p4crop;
+  const p3 = analyzeP3(uploads.tillage, uploads.crop);
+  const fertility = analyzeFertility(uploads.fertility);
+  const ipm = analyzeIPM(uploads.ipm);
+  const p6 = analyzeP6(uploads);
+  const p7 = analyzeP7(uploads);
+
+  // Combine P5 (nutrient + pesticide)
+  const p5Level = (fertility.level !== null && ipm.level !== null)
+    ? Math.min(fertility.level, ipm.level)
+    : (fertility.level !== null ? fertility.level : (ipm.level !== null ? ipm.level : null));
+
+  // P4 overall: biodiversity action elements CANNOT be verified from CSVs — only crop diversity can
+  const p4Level = p4crop.level;
+
+  // Farm name from any uploaded file
+  let farmName = 'Your Farm';
+  for (const key of ['tillage','crop','fertility','ipm']) {
+    if (uploads[key]) {
+      const { meta } = rowsToMeta(uploads[key].rows);
+      if (meta['farm_name'] && meta['farm_name'] !== '') { farmName = meta['farm_name']; break; }
+    }
+  }
+
+  const pillars = [
+    {
+      id: 'p1', num: 'P1', title: 'Minimize Soil Disturbance',
+      subtitle: 'Tillage Intensity (gTIR) — §5.3',
+      level: p1.level, evidence: p1.evidence, note: p1.note
+    },
+    {
+      id: 'p2', num: 'P2', title: 'Living Roots Year-Round',
+      subtitle: 'Living Root Index & Coverage % — §5.4',
+      level: p2.level, evidence: p2.evidence, note: p2.note
+    },
+    {
+      id: 'p3', num: 'P3', title: 'Year-Round Soil Coverage',
+      subtitle: 'Inferred from P1 + P2 data — §5.5',
+      level: p3.level, evidence: p3.evidence, note: p3.note
+    },
+    {
+      id: 'p4', num: 'P4', title: 'Maximizing Diversity',
+      subtitle: 'Crop rotation count (biodiversity manual) — §5.6',
+      level: p4Level, evidence: [
+        ...p4crop.evidence,
+        { type: 'warn', text: 'Biodiversity Action Elements (§5.6.1–5.6.4) and functional group coverage must be verified manually in your Farm Plan.' }
+      ], note: p4crop.note
+    },
+    {
+      id: 'p5-nutrient', num: 'P5a', title: 'Reducing Synthetic Inputs',
+      subtitle: 'Nutrient Stewardship — §5.7.8–5.7.10',
+      level: fertility.level, evidence: fertility.evidence, note: fertility.note
+    },
+    {
+      id: 'p5-ipm', num: 'P5b', title: 'Reducing Synthetic Inputs',
+      subtitle: 'Pesticide / IPM Stewardship — §5.7.1–5.7.7',
+      level: ipm.level, evidence: ipm.evidence, note: ipm.note
+    },
+    {
+      id: 'p6', num: 'P6', title: 'Continuous Learning',
+      subtitle: 'Annual learning credits — §5.8',
+      level: p6.level, evidence: p6.evidence, note: p6.note
+    },
+    {
+      id: 'p7', num: 'P7', title: 'Livestock Integration',
+      subtitle: 'Optional — §5.9',
+      level: p7.level, evidence: p7.evidence, note: p7.note, isOptional: true
+    }
+  ];
+
+  // Estimate overall level
+  const scored = pillars.filter(p => p.level !== null && !p.isOptional);
+  const overallLevel = scored.length > 0 ? Math.min(...scored.map(p => p.level)) : null;
+
+  renderResults(farmName, pillars, overallLevel);
+}
+
+function levelLabel(lv) {
+  if (lv === null) return 'N/A';
+  if (lv === 0) return 'Below I';
+  return 'Level ' + ['','I','II','III','IV'][lv];
+}
+function levelClass(lv) {
+  if (lv === null) return 'na';
+  if (lv === 0) return 'lv0';
+  return 'lv' + lv;
+}
+function levelPct(lv) {
+  if (lv === null || lv === 0) return lv === 0 ? 5 : 0;
+  return [0, 25, 50, 75, 100][lv];
+}
+
+function renderResults(farmName, pillars, overallLevel) {
+  const el = document.getElementById('results');
+  el.classList.add('visible');
+
+  const uploadedTools = Object.entries(uploads).filter(([k,v]) => v !== null).map(([k]) => k).join(', ');
+
+  // Store for export
+  window._lastReport = { farmName, pillars, overallLevel, uploadedTools };
+
+  let html = `
+    <div class="export-bar">
+      <button class="btn-export csv" onclick="exportCSV()">⬇ Download CSV Report</button>
+      <button class="btn-export pdf" onclick="exportPDF()">🖨 Save / Print as PDF</button>
+    </div>
+
+    <div class="farm-banner">
+      <div>
+        <h2>${farmName}</h2>
+        <div class="fb-meta">Estimated from: ${uploadedTools || 'uploaded files'} · SCI Standard v3.0</div>
+      </div>
+      <div class="farm-total">
+        <div class="ft-num">${levelLabel(overallLevel)}</div>
+        <div class="ft-lbl">Overall Estimated Level</div>
+      </div>
+    </div>
+
+    <div class="section-label">Pillar Engagement Level Estimates</div>
+    <div class="pillars-grid">
+  `;
+
+  for (const p of pillars) {
+    const lc = levelClass(p.level);
+    const pct = levelPct(p.level);
+    const evHTML = p.evidence.map(e => `
+      <div class="evidence-item ${e.type}">
+        <span class="ei-icon"></span>
+        <span>${e.text}</span>
+      </div>
+    `).join('');
+
+    html += `
+      <div class="pillar-card">
+        <div class="pillar-head">
+          <div class="pillar-num ${p.isOptional ? 'optional' : (p.level === null ? 'na' : '')}">${p.num}</div>
+          <div class="pillar-title-wrap">
+            <div class="pillar-title">${p.title}</div>
+            <div class="pillar-subtitle">${p.subtitle}</div>
+          </div>
+          <div class="level-badge ${lc}">${levelLabel(p.level)}</div>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill ${lc}" style="width:${pct}%"></div>
+        </div>
+        <div class="pillar-evidence">${evHTML}</div>
+        ${p.note ? `<div class="pillar-note">📌 ${p.note}</div>` : ''}
+      </div>
+    `;
+  }
+
+  html += `</div>`;
+
+  // Data summary
+  let summaryItems = '';
+  if (uploads.tillage) {
+    const { meta } = rowsToMeta(uploads.tillage.rows);
+    summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${num(meta['farm_average_gtir'] || '').toFixed(1)}</div><div class="ds-cell-lbl">Farm Avg gTIR</div></div>`;
+    summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${meta['total_farm_acres'] || '—'}</div><div class="ds-cell-lbl">Total Acres</div></div>`;
+  }
+  if (uploads.crop) {
+    const { meta } = rowsToMeta(uploads.crop.rows);
+    const lri = num(meta['farm_weighted_living_root_index'] || '');
+    summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${lri.toFixed(3)}</div><div class="ds-cell-lbl">Weighted LRI</div></div>`;
+    summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${meta['farm_weighted_living_root_%'] || (lri > 0 ? (lri*100).toFixed(1)+'%' : '—')}</div><div class="ds-cell-lbl">Living Root %</div></div>`;
+  }
+  if (uploads.fertility) {
+    const { meta } = rowsToMeta(uploads.fertility.rows);
+    summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${num(meta['farm_avg_n_units/acre'] || meta['farm_avg_n_units_acre'] || '').toFixed(1)}</div><div class="ds-cell-lbl">Avg N units/acre</div></div>`;
+  }
+  if (uploads.ipm) {
+    const { meta } = rowsToMeta(uploads.ipm.rows);
+    summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${num(meta['farm_avg_active_ingredient/acre'] || meta['farm_avg_active_ingredient_acre'] || '').toFixed(4)}</div><div class="ds-cell-lbl">Avg AI/Acre</div></div>`;
+    summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${meta['farm_ipm_application_count'] || '—'}</div><div class="ds-cell-lbl">IPM Applications</div></div>`;
+  }
+
+  if (summaryItems) {
+    html += `
+      <div class="data-summary">
+        <div class="ds-head">
+          <h3>Key Data Parsed from Uploads</h3>
+          <p>Values extracted directly from your CSV exports</p>
+        </div>
+        <div class="ds-grid">${summaryItems}</div>
+      </div>
+    `;
+  }
+
+  html += `
+    <div class="disclaimer">
+      <strong>Important — Estimation Only:</strong> This tool estimates Engagement Levels based on data available in the SCI toolbox CSV exports. It applies rules directly from the SCI Soil &amp; Climate Health Commitment &amp; Verification Standard v3.0. However, <strong>final Engagement Level determination requires a full third-party audit by an approved certifying body</strong> (SCS Global Services) per §8. Several requirements — including functional group diversity (§5.6.6), biodiversity Action Elements (§5.6.1–5.6.4), continuous learning credits (§5.8), and livestock welfare (§5.9) — cannot be assessed from CSV exports and must be verified through your Farm Plan and on-site audit. Farms must advance one Engagement Level every 3 years (§5.2.1.a).
+    </div>
+  `;
+
+  el.innerHTML = html;
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function exportCSV() {
+  const r = window._lastReport;
+  if (!r) return;
+  const today = new Date().toISOString().slice(0,10);
+  const rows = [];
+
+  rows.push(['SCI Engagement Level Estimate Report']);
+  rows.push(['Farm Name', r.farmName]);
+  rows.push(['Report Date', today]);
+  rows.push(['SCI Standard Version', '3.0']);
+  rows.push(['Data Sources', r.uploadedTools]);
+  rows.push(['Overall Estimated Level', levelLabel(r.overallLevel)]);
+  rows.push([]);
+  rows.push(['PILLAR SUMMARY']);
+  rows.push(['Pillar', 'Title', 'Estimated Level', 'Standard Ref', 'Optional']);
+
+  for (const p of r.pillars) {
+    rows.push([p.num, p.title, levelLabel(p.level), p.subtitle, p.isOptional ? 'Yes' : 'No']);
+  }
+
+  rows.push([]);
+  rows.push(['PILLAR DETAIL — EVIDENCE & FINDINGS']);
+
+  for (const p of r.pillars) {
+    rows.push([]);
+    rows.push([p.num + ' — ' + p.title]);
+    rows.push(['Estimated Level', levelLabel(p.level)]);
+    rows.push(['Standard Reference', p.subtitle]);
+    if (p.note) rows.push(['Action Note', p.note]);
+    rows.push(['Finding Type', 'Finding Detail']);
+    for (const e of p.evidence) {
+      const icon = e.type === 'met' ? 'PASS' : e.type === 'fail' ? 'FAIL' : e.type === 'warn' ? 'WARN' : 'INFO';
+      rows.push([icon, e.text]);
+    }
+  }
+
+  rows.push([]);
+  rows.push(['DISCLAIMER']);
+  rows.push(['This report provides an estimated Engagement Level only. Final verification requires a third-party audit by an approved certifying body (SCS Global Services) per §8 of the SCI Verification Standard v3.0. Requirements including biodiversity Action Elements (§5.6.1-5.6.4), continuous learning credits (§5.8), and livestock welfare (§5.9) must be verified through Farm Plan review and on-site audit.']);
+
+  const csv = '\uFEFF' + rows.map(r => r.map(csvEsc).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  const safeName = (r.farmName || 'farm').replace(/[^a-z0-9_-]+/gi,'_').replace(/^_+|_+$/g,'');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${safeName}_SCI_Engagement_Level_Report_${today}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
+function exportPDF() {
+  window.print();
+}
+</script>
+</body>
+</html>
