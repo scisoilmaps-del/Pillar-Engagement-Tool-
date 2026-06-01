@@ -376,7 +376,7 @@
 
   <div class="intro-card">
     <div class="intro-icon">ℹ️</div>
-    <p>Upload any combination of exports from the SCI Farm Program Toolbox. The tool will parse each CSV and estimate your current Engagement Level (I–IV) for each relevant Pillar based on <strong>explicit rules in the SCI Standard v3.0</strong>. Upload at least the <strong>Tillage Calculator</strong> and <strong>Crop Planner</strong> CSVs for the most complete analysis. Include the <strong>Continuous Learning Credit Tracker</strong> CSV to assess P6.</p>
+    <p>Upload any combination of exports from the SCI Farm Program Toolbox. The tool will parse each CSV and estimate your current Engagement Level (I–IV) for each relevant Pillar based on <strong>explicit rules in the SCI Standard v3.0</strong>. Upload at least the <strong>Tillage Calculator</strong> and <strong>Crop Planner</strong> CSVs for the most complete analysis. Include the <strong>Continuous Learning Credit Tracker</strong> CSV to assess P6 and the <strong>Soil Health Report</strong> CSV to check soil testing readiness.</p>
   </div>
 
   <div class="section-label">Step 1 — Upload Tool Exports</div>
@@ -429,6 +429,16 @@
       <div class="uc-sub">Learning Credit Tracker CSV</div>
       <div class="uc-file" id="uf-learning"></div>
       <div class="uc-cols" id="ucols-learning">P6 — Continuous Learning</div>
+    </label>
+
+    <label class="upload-card" id="uc-soil">
+      <input type="file" accept=".csv" onchange="handleFile(event,'soil')">
+      <div class="upload-icon">🌱</div>
+      <div class="loaded-icon">✓</div>
+      <h3>Soil Health Report</h3>
+      <div class="uc-sub">SCI Soil Testing CSV</div>
+      <div class="uc-file" id="uf-soil"></div>
+      <div class="uc-cols" id="ucols-soil">Soil Testing — §7</div>
     </label>
 
 
@@ -500,8 +510,83 @@ function rowsToTable(rows, headerRow) {
   return table;
 }
 
+
+function rowsToObjectsByHeader(rows, requiredHeader) {
+  const wanted = String(requiredHeader || '').toLowerCase();
+  let hIdx = -1;
+  for (let i = 0; i < rows.length; i++) {
+    const lower = rows[i].map(c => String(c || '').toLowerCase());
+    if (lower.includes(wanted)) { hIdx = i; break; }
+  }
+  if (hIdx < 0) return [];
+  const headers = rows[hIdx];
+  const out = [];
+  for (let i = hIdx + 1; i < rows.length; i++) {
+    if (!rows[i] || rows[i].every(c => !String(c || '').trim())) continue;
+    const obj = {};
+    headers.forEach((h, j) => { obj[h] = rows[i][j] || ''; });
+    out.push(obj);
+  }
+  return out;
+}
+
+function analyzeSoilTesting(data) {
+  if (!data) return {
+    level: null, isCompliance: true, compliance: null,
+    evidence: [{ type: 'warn', text: 'No Soil Health Report CSV uploaded. Upload the CSV exported from the SCI Soil Health Report tool to check §7 soil testing readiness.' }],
+    note: 'Soil testing is a verification requirement, not a Pillar Engagement Level. It is checked separately from P1–P7.'
+  };
+
+  const evidence = [];
+  const rows = rowsToObjectsByHeader(data.rows, 'row_type');
+  if (!rows.length) return {
+    level: null, isCompliance: true, compliance: false,
+    evidence: [{ type: 'fail', text: 'CSV was uploaded but does not match the Soil Health Report export structure.' }],
+    note: 'Expected columns include row_type, farm_name, sampling_date, boundary, metric, value, and source_field.'
+  };
+
+  const metrics = rows.map(r => String(r.metric || '').trim().toLowerCase()).filter(Boolean);
+  const hasMetric = (...names) => names.some(n => metrics.includes(n.toLowerCase())) || names.some(n => metrics.some(m => m.includes(n.toLowerCase())));
+  const farmName = rows.find(r => r.farm_name)?.farm_name || '';
+  const sampleDates = [...new Set(rows.map(r => String(r.sampling_date || '').trim()).filter(Boolean))];
+  const boundaries = [...new Set(rows.map(r => String(r.boundary || '').trim()).filter(v => v && v !== 'All included boundaries'))];
+  const sampleRow = rows.find(r => String(r.metric || '').toLowerCase() === 'total samples' || String(r.metric || '').toLowerCase() === 'sample count');
+  const sampleCount = sampleRow ? num(sampleRow.value || sampleRow.sample_count || '') : num(rows[0].sample_count || '');
+
+  const labChecks = [
+    ['Total Organic Carbon', hasMetric('Total Organic Carbon','Total Org. C')],
+    ['Haney Soil Health Test indicators', hasMetric('Soil Health Score','Organic Matter','Organic C:N Ratio','CO2-C')],
+    ['PLFA microbial indicators', hasMetric('Total Microbial Biomass','AM Fungi','Arbuscular Mycorrhizal Fungi')],
+    ['Soil Organic Matter', hasMetric('Organic Matter')]
+  ];
+  const fieldChecks = [
+    ['Water Infiltration Rate', hasMetric('Water Infiltration')],
+    ['Worm Count', hasMetric('Worm Count')],
+    ['Penetrometer / Compaction', hasMetric('Penetrometer','Compaction')],
+    ['Slake Test / Aggregate Stability', hasMetric('Slake','Aggregate Stability','Total Aggregates')]
+  ];
+
+  evidence.push({ type: sampleCount > 0 ? 'met' : 'warn', text: `Parsed ${sampleCount || rows.length} soil testing records${farmName ? ' for '+farmName : ''}.` });
+  if (sampleDates.length) evidence.push({ type: 'met', text: `Sampling date captured: ${sampleDates.join(', ')}.` });
+  else evidence.push({ type: 'warn', text: 'Sampling date was not found; §7.1.4 timing against the baseline date must be verified manually.' });
+  evidence.push({ type: boundaries.length ? 'met' : 'warn', text: boundaries.length ? `Included boundaries/fields found: ${boundaries.length}.` : 'No boundary/field names found in the CSV.' });
+
+  labChecks.forEach(([label, ok]) => evidence.push({ type: ok ? 'met' : 'warn', text: `${label}: ${ok ? 'found in Soil Health CSV' : 'not found or not exported; verify against lab report'}.` }));
+  fieldChecks.forEach(([label, ok]) => evidence.push({ type: ok ? 'met' : 'warn', text: `${label}: ${ok ? 'found in Soil Health CSV' : 'not found; annual field test documentation may still be needed'}.` }));
+  evidence.push({ type: 'warn', text: 'Confirm the sampler was SCI-approved, the Producer was present for at least one-third of Field Tests, and Lab Tests were conducted by the approved lab (§7.1–§7.2).' });
+  evidence.push({ type: 'info', text: 'Lab Tests are required at baseline and every 3 years; Field Tests are required annually (§7.3–§7.5).' });
+
+  const requiredFound = labChecks.filter(x=>x[1]).length + fieldChecks.filter(x=>x[1]).length;
+  const compliance = requiredFound >= 6 && sampleCount > 0 && sampleDates.length > 0;
+  return {
+    level: null, isCompliance: true, compliance,
+    evidence,
+    note: compliance ? 'Soil testing CSV appears ready for verification review. Manual confirmation of sampler, lab, timing, and SCI methodology is still required.' : 'CSV was accepted, but one or more §7 soil testing elements need review or manual documentation.'
+  };
+}
+
 // ─── State ────────────────────────────────────────────────────────────────────
-const uploads = { tillage: null, crop: null, fertility: null, ipm: null, learning: null };
+const uploads = { tillage: null, crop: null, fertility: null, ipm: null, learning: null, soil: null };
 
 function handleFile(evt, key) {
   const file = evt.target.files[0];
@@ -1004,6 +1089,7 @@ function analyze() {
   const ipm = analyzeIPM(uploads.ipm);
   const p6 = analyzeP6(uploads);
   const p7 = analyzeP7(uploads);
+  const soil = analyzeSoilTesting(uploads.soil);
 
   // Combine P5 (nutrient + pesticide)
   const p5Level = (fertility.level !== null && ipm.level !== null)
@@ -1015,7 +1101,7 @@ function analyze() {
 
   // Farm name from any uploaded file
   let farmName = 'Your Farm';
-  for (const key of ['tillage','crop','fertility','ipm','learning']) {
+  for (const key of ['tillage','crop','fertility','ipm','learning','soil']) {
     if (uploads[key]) {
       const { meta } = rowsToMeta(uploads[key].rows);
       if (meta['farm_name'] && meta['farm_name'] !== '') { farmName = meta['farm_name']; break; }
@@ -1066,6 +1152,12 @@ function analyze() {
       id: 'p7', num: 'P7', title: 'Livestock Integration',
       subtitle: 'Optional — §5.9',
       level: p7.level, evidence: p7.evidence, note: p7.note, isOptional: true
+    },
+    {
+      id: 'soil-testing', num: '§7', title: 'Soil Testing Readiness',
+      subtitle: 'Required Soil Testing — §7.1–§7.5',
+      level: null, isCompliance: true, compliance: soil.compliance,
+      evidence: soil.evidence, note: soil.note
     }
   ];
 
@@ -1129,10 +1221,15 @@ function renderResults(farmName, pillars, overallLevel) {
       </div>
     `).join('');
 
-    // P6 compliance-only card
+    // Compliance-only cards (P6 learning credits and §7 soil testing requirements)
     if (p.isCompliance) {
       const badgeClass = p.compliance === null ? 'compliance-pending' : p.compliance ? 'compliant' : 'not-compliant';
-      const badgeLabel = p.compliance === null ? 'Upload CSV' : p.compliance ? '✓ Credits Met' : '✗ Not Met';
+      const isSoilTesting = p.num === '§7' || /soil testing/i.test(p.title || '');
+      const badgeLabel = p.compliance === null
+        ? 'Upload CSV'
+        : p.compliance
+          ? (isSoilTesting ? '✓ Requirements Met' : '✓ Credits Met')
+          : (isSoilTesting ? '✗ Requirements Not Met' : '✗ Credits Not Met');
       html += `
         <div class="pillar-card">
           <div class="pillar-head">
@@ -1195,6 +1292,14 @@ function renderResults(farmName, pillars, overallLevel) {
     summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${num(meta['farm_avg_active_ingredient/acre'] || meta['farm_avg_active_ingredient_acre'] || '').toFixed(4)}</div><div class="ds-cell-lbl">Avg AI/Acre</div></div>`;
     summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${meta['farm_ipm_application_count'] || '—'}</div><div class="ds-cell-lbl">IPM Applications</div></div>`;
   }
+  if (uploads.soil) {
+    const soilRows = rowsToObjectsByHeader(uploads.soil.rows, 'row_type');
+    const sampleCountRow = soilRows.find(r => String(r.metric || '').toLowerCase() === 'total samples' || String(r.metric || '').toLowerCase() === 'sample count');
+    const sampleCount = sampleCountRow ? num(sampleCountRow.value || sampleCountRow.sample_count || '') : 0;
+    const boundaries = [...new Set(soilRows.map(r => String(r.boundary || '').trim()).filter(v => v && v !== 'All included boundaries'))];
+    summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${sampleCount || '—'}</div><div class="ds-cell-lbl">Soil Samples</div></div>`;
+    summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${boundaries.length || '—'}</div><div class="ds-cell-lbl">Soil Boundaries</div></div>`;
+  }
   if (uploads.learning) {
     const { meta } = rowsToMeta(uploads.learning.rows);
     const rawTarget = meta['annual_credit_target'] || '—';
@@ -1218,7 +1323,7 @@ function renderResults(farmName, pillars, overallLevel) {
 
   html += `
     <div class="disclaimer">
-      <strong>Important — Estimation Only:</strong> This tool estimates Engagement Levels based on data available in the SCI toolbox CSV exports. It applies rules directly from the SCI Soil &amp; Climate Health Commitment &amp; Verification Standard v3.0. However, <strong>final Engagement Level determination requires a full third-party audit by an approved certifying body</strong> (SCS Global Services) per §8. Several requirements — including functional group diversity (§5.6.6), biodiversity Action Elements (§5.6.1–5.6.4), continuous learning credits (§5.8), and livestock welfare (§5.9) — cannot be assessed from CSV exports and must be verified through your Farm Plan and on-site audit. Farms must advance one Engagement Level every 3 years (§5.2.1.a).
+      <strong>Important — Estimation Only:</strong> This tool estimates Engagement Levels based on data available in the SCI toolbox CSV exports. It applies rules directly from the SCI Soil &amp; Climate Health Commitment &amp; Verification Standard v3.0. However, <strong>final Engagement Level determination requires a full third-party audit by an approved certifying body</strong> (SCS Global Services) per §8. Several requirements — including functional group diversity (§5.6.6), biodiversity Action Elements (§5.6.1–5.6.4), soil testing requirements (§7), continuous learning credits (§5.8), and livestock welfare (§5.9) — cannot be assessed from CSV exports and must be verified through your Farm Plan and on-site audit. Farms must advance one Engagement Level every 3 years (§5.2.1.a).
     </div>
   `;
 
@@ -1247,8 +1352,9 @@ function exportCSV() {
   rows.push(['Pillar', 'Title', 'Estimated Level', 'Standard Ref', 'Optional']);
 
   for (const p of r.pillars) {
+    const isSoilTesting = p.num === '§7' || /soil testing/i.test(p.title || '');
     const levelVal = p.isCompliance
-      ? (p.compliance === null ? 'No data' : p.compliance ? 'Credits Met' : 'Credits Not Met')
+      ? (p.compliance === null ? 'No data' : p.compliance ? (isSoilTesting ? 'Requirements Met' : 'Credits Met') : (isSoilTesting ? 'Requirements Not Met' : 'Credits Not Met'))
       : levelLabel(p.level);
     rows.push([p.num, p.title, levelVal, p.subtitle, p.isOptional ? 'Yes' : (p.isCompliance ? 'Compliance' : 'No')]);
   }
@@ -1271,7 +1377,7 @@ function exportCSV() {
 
   rows.push([]);
   rows.push(['DISCLAIMER']);
-  rows.push(['This report provides an estimated Engagement Level only. Final verification requires a third-party audit by an approved certifying body (SCS Global Services) per §8 of the SCI Verification Standard v3.0. Requirements including biodiversity Action Elements (§5.6.1-5.6.4), continuous learning credits (§5.8), and livestock welfare (§5.9) must be verified through Farm Plan review and on-site audit.']);
+  rows.push(['This report provides an estimated Engagement Level only. Final verification requires a third-party audit by an approved certifying body (SCS Global Services) per §8 of the SCI Verification Standard v3.0. Requirements including biodiversity Action Elements (§5.6.1-5.6.4), soil testing requirements (§7), continuous learning credits (§5.8), soil testing requirements (§7), and livestock welfare (§5.9) must be verified through Farm Plan review and on-site audit.']);
 
   const csv = '\uFEFF' + rows.map(r => r.map(csvEsc).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
