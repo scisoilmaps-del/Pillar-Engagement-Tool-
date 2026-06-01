@@ -226,7 +226,9 @@
   .level-badge.lv3 { background: var(--sky-lt); color: #1A5070; }
   .level-badge.lv4 { background: var(--gold-lt); color: #7A5800; }
   .level-badge.lv0 { background: var(--warn-lt); color: var(--warn); }
-  .level-badge.na  { background: var(--silver-lt); color: var(--silver); }
+  .level-badge.compliant   { background: var(--leaf-pale); color: var(--moss); }
+  .level-badge.not-compliant { background: var(--warn-lt); color: var(--warn); }
+  .level-badge.compliance-pending { background: var(--silver-lt); color: var(--silver); }
 
   /* Progress bar */
   .progress-track {
@@ -374,7 +376,7 @@
 
   <div class="intro-card">
     <div class="intro-icon">ℹ️</div>
-    <p>Upload any combination of exports from the SCI Farm Program Toolbox. The tool will parse each CSV and estimate your current Engagement Level (I–IV) for each relevant Pillar based on <strong>explicit rules in the SCI Standard v3.0</strong>. Upload at least the <strong>Tillage Calculator</strong> and <strong>Crop Planner</strong> CSVs for the most complete analysis.</p>
+    <p>Upload any combination of exports from the SCI Farm Program Toolbox. The tool will parse each CSV and estimate your current Engagement Level (I–IV) for each relevant Pillar based on <strong>explicit rules in the SCI Standard v3.0</strong>. Upload at least the <strong>Tillage Calculator</strong> and <strong>Crop Planner</strong> CSVs for the most complete analysis. Include the <strong>Continuous Learning Credit Tracker</strong> CSV to assess P6.</p>
   </div>
 
   <div class="section-label">Step 1 — Upload Tool Exports</div>
@@ -418,6 +420,15 @@
       <div class="uc-sub">IPM Input Summary CSV</div>
       <div class="uc-file" id="uf-ipm"></div>
       <div class="uc-cols" id="ucols-ipm">P5 — Pesticide Stewardship</div>
+    </label>
+    <label class="upload-card" id="uc-learning">
+      <input type="file" accept=".csv" onchange="handleFile(event,'learning')">
+      <div class="upload-icon">📚</div>
+      <div class="loaded-icon">✓</div>
+      <h3>Continuous Learning</h3>
+      <div class="uc-sub">Learning Credit Tracker CSV</div>
+      <div class="uc-file" id="uf-learning"></div>
+      <div class="uc-cols" id="ucols-learning">P6 — Continuous Learning</div>
     </label>
 
 
@@ -490,7 +501,7 @@ function rowsToTable(rows, headerRow) {
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
-const uploads = { tillage: null, crop: null, fertility: null, ipm: null, soil: null, irrigation: null };
+const uploads = { tillage: null, crop: null, fertility: null, ipm: null, learning: null };
 
 function handleFile(evt, key) {
   const file = evt.target.files[0];
@@ -879,22 +890,87 @@ function analyzeP3(tillageData, cropData) {
 }
 
 function analyzeP6(allData) {
-  // P6: Continuous Learning
-  // §5.8.1: ≥$150k revenue → 24 credits/year (8 on-farm research)
-  // §5.8.2: <$150k → 16 credits/year
-  // §5.8.3: First year waived by enrollment activities
-  // Cannot be assessed from CSVs — mark as manual
-  return {
-    level: null,
+  const data = allData.learning;
+  if (!data) return {
+    level: null, isCompliance: true, compliance: null,
     evidence: [
-      { type: 'warn', text: 'P6 Continuous Learning cannot be assessed from toolbox CSV exports.' },
-      { type: 'info', text: '§5.8.1: Farms ≥$150k revenue → 24 learning credits/year (8 on-farm research)' },
-      { type: 'info', text: '§5.8.2: Farms <$150k → 16 learning credits/year' },
-      { type: 'info', text: '§5.8.3: First-year enrollment activities satisfy the requirement' },
-      { type: 'info', text: 'Document via webinars (1 credit), consultations (2), field days (3), on-farm research (4)' }
+      { type: 'warn', text: 'No Continuous Learning Credit Tracker CSV uploaded.' },
+      { type: 'info', text: '§5.8.1: Farms ≥$150k revenue → 24 credits/year (8 must be on-farm research)' },
+      { type: 'info', text: '§5.8.2: Farms <$150k → 16 credits/year minimum' },
+      { type: 'info', text: '§5.8.3: First-year enrollment activities satisfy the requirement' }
     ],
-    note: 'Assess manually using the Learning Credit Allocation table (§5.8 / Table 5.8). Report annually.'
+    note: 'Upload the Continuous Learning Credit Tracker CSV to check P6 compliance.'
   };
+
+  const { meta } = rowsToMeta(data.rows);
+  const evidence = [];
+
+  // Detect first-year mode — new tracker emits 'program_year' key
+  const programYear = (meta['program_year'] || '').toLowerCase();
+  const isFirstYear = programYear.includes('first') ||
+    (meta['annual_credit_target'] || '').toLowerCase().includes('waived');
+
+  const cropYear   = meta['crop_year'] || '—';
+  const revTier    = meta['revenue_tier'] || '';
+
+  // Parse numeric target — 'Waived (First Year)' → num() = 0, handle separately
+  const rawTarget   = meta['annual_credit_target'] || '';
+  const rawResearch = meta['on-farm_research_target'] || '';
+  const annualTarget   = num(rawTarget);
+  const researchTarget = num(rawResearch);
+  const target = annualTarget > 0 ? annualTarget : 24;
+  const resMin = researchTarget > 0 ? researchTarget : 0;
+
+  evidence.push({ type: 'info', text: `Crop Year: ${cropYear} · Revenue Tier: ${revTier || 'not specified'}` });
+
+  // ── First Year shortcut ──
+  if (isFirstYear) {
+    evidence.push({ type: 'met', text: '§5.8.3 First Year applies — enrollment, Farm Plan completion, baseline soil testing, and the soil testing interpretive support meeting satisfy the requirement.' });
+    evidence.push({ type: 'info', text: 'No credit count verification needed for Year 1. Renewal years require full annual credits.' });
+    return {
+      level: null, isCompliance: true, compliance: true,
+      evidence,
+      note: 'First Year (§5.8.3) — requirement satisfied by enrollment activities. Full credits required from Year 2 onward.'
+    };
+  }
+
+  evidence.push({ type: 'info', text: `Annual credit target: ${target}${resMin > 0 ? ` · On-farm research minimum: ${resMin} credits (§5.8.1)` : ' · No on-farm research minimum (§5.8.2)'}` });
+
+  // ── Parse detail rows ──
+  const detailRows = rowsToTable(data.rows, ['Farm Name','Crop Year','Person Name']);
+  if (!detailRows.length) {
+    evidence.push({ type: 'warn', text: 'No learning event rows found in CSV. Ensure you exported from the Continuous Learning Credit Tracker.' });
+    return { level: null, isCompliance: true, compliance: null, evidence, note: 'CSV did not contain parseable learning event data.' };
+  }
+
+  const people = {};
+  for (const row of detailRows) {
+    const name = (row['Person Name'] || 'Unknown').trim();
+    const credits = num(row['Credits'] || '');
+    const isRes = (row['Is On-Farm Research'] || '').toLowerCase() === 'yes';
+    if (!people[name]) people[name] = { credits: 0, research: 0, role: row['Role'] || '' };
+    people[name].credits  += credits;
+    people[name].research += isRes ? credits : 0;
+  }
+
+  let allMet = true;
+  for (const name of Object.keys(people)) {
+    const p = people[name];
+    const metTarget   = p.credits >= target;
+    const metResearch = resMin === 0 || p.research >= resMin;
+    const met = metTarget && metResearch;
+    if (!met) allMet = false;
+    evidence.push({
+      type: met ? 'met' : 'fail',
+      text: `${name} (${p.role || 'unknown role'}): ${p.credits} of ${target} credits · ${p.research} on-farm research${resMin > 0 ? ` of ${resMin} required` : ''} — ${met ? '✓ Credits met' : '✗ Credits not met'}`
+    });
+  }
+
+  const note = allMet
+    ? 'All tracked persons have met their annual credit target. Maintain evidence of participation for renewal (§5.8.3).'
+    : `One or more persons are below the ${target}-credit annual target. Add learning events before renewal (§5.8).`;
+
+  return { level: null, isCompliance: true, compliance: allMet, evidence, note };
 }
 
 function analyzeP7(allData) {
@@ -939,7 +1015,7 @@ function analyze() {
 
   // Farm name from any uploaded file
   let farmName = 'Your Farm';
-  for (const key of ['tillage','crop','fertility','ipm']) {
+  for (const key of ['tillage','crop','fertility','ipm','learning']) {
     if (uploads[key]) {
       const { meta } = rowsToMeta(uploads[key].rows);
       if (meta['farm_name'] && meta['farm_name'] !== '') { farmName = meta['farm_name']; break; }
@@ -983,7 +1059,8 @@ function analyze() {
     {
       id: 'p6', num: 'P6', title: 'Continuous Learning',
       subtitle: 'Annual learning credits — §5.8',
-      level: p6.level, evidence: p6.evidence, note: p6.note
+      level: p6.level, isCompliance: true, compliance: p6.compliance,
+      evidence: p6.evidence, note: p6.note
     },
     {
       id: 'p7', num: 'P7', title: 'Livestock Integration',
@@ -992,8 +1069,8 @@ function analyze() {
     }
   ];
 
-  // Estimate overall level
-  const scored = pillars.filter(p => p.level !== null && !p.isOptional);
+  // Estimate overall level — P6 is compliance-only, not a levelled pillar
+  const scored = pillars.filter(p => p.level !== null && !p.isOptional && !p.isCompliance);
   const overallLevel = scored.length > 0 ? Math.min(...scored.map(p => p.level)) : null;
 
   renderResults(farmName, pillars, overallLevel);
@@ -1045,8 +1122,6 @@ function renderResults(farmName, pillars, overallLevel) {
   `;
 
   for (const p of pillars) {
-    const lc = levelClass(p.level);
-    const pct = levelPct(p.level);
     const evHTML = p.evidence.map(e => `
       <div class="evidence-item ${e.type}">
         <span class="ei-icon"></span>
@@ -1054,6 +1129,29 @@ function renderResults(farmName, pillars, overallLevel) {
       </div>
     `).join('');
 
+    // P6 compliance-only card
+    if (p.isCompliance) {
+      const badgeClass = p.compliance === null ? 'compliance-pending' : p.compliance ? 'compliant' : 'not-compliant';
+      const badgeLabel = p.compliance === null ? 'Upload CSV' : p.compliance ? '✓ Credits Met' : '✗ Not Met';
+      html += `
+        <div class="pillar-card">
+          <div class="pillar-head">
+            <div class="pillar-num">${p.num}</div>
+            <div class="pillar-title-wrap">
+              <div class="pillar-title">${p.title}</div>
+              <div class="pillar-subtitle">${p.subtitle}</div>
+            </div>
+            <div class="level-badge ${badgeClass}">${badgeLabel}</div>
+          </div>
+          <div class="pillar-evidence">${evHTML}</div>
+          ${p.note ? `<div class="pillar-note">📌 ${p.note}</div>` : ''}
+        </div>
+      `;
+      continue;
+    }
+
+    const lc = levelClass(p.level);
+    const pct = levelPct(p.level);
     html += `
       <div class="pillar-card">
         <div class="pillar-head">
@@ -1096,6 +1194,14 @@ function renderResults(farmName, pillars, overallLevel) {
     const { meta } = rowsToMeta(uploads.ipm.rows);
     summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${num(meta['farm_avg_active_ingredient/acre'] || meta['farm_avg_active_ingredient_acre'] || '').toFixed(4)}</div><div class="ds-cell-lbl">Avg AI/Acre</div></div>`;
     summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${meta['farm_ipm_application_count'] || '—'}</div><div class="ds-cell-lbl">IPM Applications</div></div>`;
+  }
+  if (uploads.learning) {
+    const { meta } = rowsToMeta(uploads.learning.rows);
+    const rawTarget = meta['annual_credit_target'] || '—';
+    const progYear = meta['program_year'] || '';
+    const isFirstYr = progYear.toLowerCase().includes('first') || rawTarget.toLowerCase().includes('waived');
+    summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${isFirstYr ? 'First Year' : (rawTarget || '—')}</div><div class="ds-cell-lbl">Credit Target / Year</div></div>`;
+    summaryItems += `<div class="ds-cell"><div class="ds-cell-val">${meta['crop_year'] || '—'}</div><div class="ds-cell-lbl">Learning Year</div></div>`;
   }
 
   if (summaryItems) {
@@ -1141,7 +1247,10 @@ function exportCSV() {
   rows.push(['Pillar', 'Title', 'Estimated Level', 'Standard Ref', 'Optional']);
 
   for (const p of r.pillars) {
-    rows.push([p.num, p.title, levelLabel(p.level), p.subtitle, p.isOptional ? 'Yes' : 'No']);
+    const levelVal = p.isCompliance
+      ? (p.compliance === null ? 'No data' : p.compliance ? 'Credits Met' : 'Credits Not Met')
+      : levelLabel(p.level);
+    rows.push([p.num, p.title, levelVal, p.subtitle, p.isOptional ? 'Yes' : (p.isCompliance ? 'Compliance' : 'No')]);
   }
 
   rows.push([]);
