@@ -197,7 +197,7 @@
     padding: 14px 16px 12px;
     display: flex; align-items: flex-start; gap: 10px;
     border-bottom: 1px solid var(--line);
-  }
+   padding-right: 18px; box-sizing:border-box;}
   .pillar-num {
     width: 28px; height: 28px; border-radius: 8px;
     background: var(--leaf);
@@ -220,6 +220,7 @@
     font-size: 12px; font-weight: 700;
     font-family: 'DM Mono', monospace;
     flex-shrink: 0;
+    white-space: nowrap; max-width: calc(100% - 24px);
   }
   .level-badge.lv1 { background: var(--sun-lt); color: #8B5500; }
   .level-badge.lv2 { background: var(--leaf-pale); color: var(--moss); }
@@ -359,7 +360,35 @@
     .pillars-grid { grid-template-columns: 1fr; }
     .farm-banner { flex-direction: column; }
     .farm-total { text-align: left; }
+    .pillar-head { flex-wrap: wrap; }
+    .pillar-title-wrap { min-width: 150px; }
+    .level-badge { margin-left: 38px; margin-right: 12px; font-size: 11px; padding: 4px 10px; }
   }
+
+  @media (max-width: 600px) {
+    .pillar-head {
+      display: grid !important;
+      grid-template-columns: 56px 1fr !important;
+      column-gap: 14px !important;
+      row-gap: 10px !important;
+      align-items: start !important;
+      padding-right: 18px !important;
+      box-sizing: border-box !important;
+    }
+    .pillar-title-wrap {
+      min-width: 0 !important;
+    }
+    .level-badge {
+      grid-column: 2 !important;
+      justify-self: start !important;
+      margin-left: 0 !important;
+      margin-right: 18px !important;
+      max-width: calc(100% - 18px) !important;
+      white-space: nowrap !important;
+      box-sizing: border-box !important;
+    }
+  }
+
 </style>
 </head>
 <body>
@@ -1272,12 +1301,7 @@ function renderResults(farmName, pillars, overallLevel) {
       <div>
         <h2>${farmName}</h2>
         <div class="fb-meta">Estimated from: ${uploadedTools || 'uploaded files'} · SCI Standard v3.0</div>
-      </div>
-      <div class="farm-total">
-        <div class="ft-num">${levelLabel(overallLevel)}</div>
-        <div class="ft-lbl">Overall Estimated Level</div>
-      </div>
-    </div>
+      </div>    </div>
 
     <div class="section-label">Pillar Engagement Level Estimates</div>
     <div class="pillars-grid">
